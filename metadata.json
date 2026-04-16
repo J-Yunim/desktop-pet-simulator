@@ -1,0 +1,5 @@
+{
+  "name": "Desktop Pet Simulator",
+  "description": "An interactive desktop pet application featuring animated pixel art cats and corgis with dynamic behaviors.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tuxedo Cat Avatar</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#E8E5E0;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:'Courier New',monospace;overflow:hidden}
+  canvas{image-rendering:pixelated;image-rendering:crisp-edges;border-radius:8px;box-shadow:0 4px 24px rgba(0,0,0,.08)}
+  .info{color:#999;font-size:11px;margin-top:10px;letter-spacing:1px}
+</style>
+</head>
+<body>
+<canvas id="c" width="720" height="720"></canvas>
+<div class="info" id="info"></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+
+const P={
+  bg:'#F9F7F4',dot:'#E0DDD8',
+  sd:'#333',sm:'#888',sl:'#BBB',
+  black:'#1A1A1B',white:'#FFFFFF',
+  eye:'#FFD700',nose:'#FFB7C5',
+  w:'#FFF',blush:'#FAC8D8',pink:'#F06090',pinkDeep:'#C84060',
+};
+
+const PX=20,GW=36,GH=36;
+function px(x,y,c){ctx.fillStyle=c;ctx.fillRect(x*PX,y*PX,PX,PX)}
+
+const CAT_BODY = [
+  [0,0,1,1,0,0,0,0,0,0,1,1,0,0],
+  [0,1,1,1,1,0,0,0,0,1,1,1,1,0],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,1,3,3,1,1,1,1,1,1,3,3,1,1],
+  [1,1,3,3,1,1,1,1,1,1,3,3,1,1],
+  [1,1,1,1,1,1,4,4,1,1,1,1,1,1],
+  [1,1,1,1,1,2,2,2,2,1,1,1,1,1],
+  [0,1,1,1,2,2,2,2,2,2,1,1,1,0],
+  [0,0,1,2,2,2,2,2,2,2,2,1,0,0],
+  [0,0,1,2,2,2,2,2,2,2,2,1,0,0],
+  [0,0,1,1,2,2,2,2,2,2,1,1,0,0],
+  [0,0,0,1,1,1,1,1,1,1,1,0,0,0],
+  [0,0,0,1,1,0,0,0,0,1,1,0,0,0]
+];
+
+const STARS=[
+  [4,3,0],[14,2,0],[27,1,0],[31,3,1],[6,7,0],[19,5,2],[24,6,1],
+  [9,10,0],[2,13,0],[33,8,0],[29,12,0],[7,16,1],[3,20,0],[30,18,1],
+  [1,25,0],[33,24,0],[5,30,2],[28,28,1],[15,9,2],[21,14,1]
+];
+
+function drawBg(){
+  ctx.fillStyle=P.bg;ctx.fillRect(0,0,720,720);
+  for(let y=1;y<GH;y+=2)for(let x=1;x<GW;x+=2){
+    ctx.fillStyle=P.dot;ctx.beginPath();ctx.arc(x*PX+10,y*PX+10,2,0,6.28);ctx.fill();
+  }
+}
+
+function drawStars(f){
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  for(const[x,y,t]of STARS){
+    const tw=Math.sin(f*.08+x*.5+y*.3);
+    ctx.fillStyle=t===0?(tw>0?P.sd:P.sm):t===1?(tw>.3?P.sm:P.sl):(tw>0?P.sl:P.dot);
+    ctx.font=`bold ${t===0?14:10}px serif`;
+    ctx.fillText('✳',x*PX+10,y*PX+10);
+  }
+}
+
+function drawCat(ox,oy,blink=false){
+  for(let r=0;r<14;r++){
+    for(let c=0;c<14;c++){
+      const val = CAT_BODY[r][c];
+      if(val === 1) px(ox+c,oy+r,P.black);
+      else if(val === 2) px(ox+c,oy+r,P.white);
+      else if(val === 3) {
+        if(blink) px(ox+c,oy+r,P.black);
+        else px(ox+c,oy+r,P.eye);
+      }
+      else if(val === 4) px(ox+c,oy+r,P.nose);
+    }
+  }
+  // Tail
+  const tailOffset = Math.sin(Date.now() * 0.005) * 2;
+  px(ox-1, oy+11, P.black);
+  px(ox-2, oy+10 + Math.round(tailOffset), P.black);
+  px(ox-3, oy+9 + Math.round(tailOffset), P.black);
+  px(ox-4, oy+10 + Math.round(tailOffset), P.black);
+}
+
+function drawHeart(hx,hy,c){
+  const HEART=[[1,0,1],[1,1,1],[0,1,0]];
+  for(let r=0;r<3;r++)for(let i=0;i<3;i++)if(HEART[r][i])px(hx+i,hy+r,c);
+}
+
+const FPS=30, DUR=3, TOTAL=FPS*DUR;
+
+function render(f){
+  const t=f/TOTAL;
+  drawBg(); 
+  drawStars(f);
+  
+  const cx=11, cy=11;
+  const breath=Math.round(Math.sin(f*0.1)*0.5);
+  const blink = (f % 60 > 55);
+  
+  drawCat(cx, cy+breath, blink);
+  
+  if(t > 0.5) {
+    const heartY = cy - 5 - Math.round(Math.sin(f*0.1)*2);
+    drawHeart(cx+12, heartY, P.pink);
+  }
+}
+
+let st=null;
+function loop(ts){
+  if(!st)st=ts;const el=(ts-st)/1000,lt=el%DUR,f=Math.floor(lt*FPS);
+  render(f);
+  document.getElementById('info').textContent=`Tuxedo Cat — ${lt.toFixed(1)}s/${DUR}s`;
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
