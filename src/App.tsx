@@ -40,7 +40,8 @@ const TRANSLATIONS = {
     grassland: "Grassland",
     indoor: "Cozy Indoor",
     garden: "Garden",
-    classic: "Classic"
+    classic: "Classic",
+    quit: "Quit"
   },
   zh: {
     title: "桌面宠物",
@@ -71,7 +72,8 @@ const TRANSLATIONS = {
     grassland: "草原",
     indoor: "温馨室内",
     garden: "花园",
-    classic: "经典"
+    classic: "经典",
+    quit: "退出"
   }
 };
 
@@ -92,10 +94,16 @@ export default function App() {
     return (saved as Theme) || 'forest';
   });
   const [timeOfDay, setTimeOfDay] = useState(getTimeOfDay());
+  const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(() => {
+    const saved = localStorage.getItem('desktopPets_onTop');
+    return saved === null ? true : saved === 'true';
+  });
   const [locale, setLocale] = useState<'en' | 'zh'>(() => {
     const saved = localStorage.getItem('desktopPets_locale');
     return (saved === 'en' || saved === 'zh') ? saved : 'en';
   });
+  const [contextMenu, setContextMenu] = useState<{ petId: number, x: number, y: number } | null>(null);
+  const [petToDelete, setPetToDelete] = useState<number | null>(null);
   
   const t = TRANSLATIONS[locale];
 
@@ -135,6 +143,17 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('desktopPets_locale', locale);
   }, [locale]);
+
+  useEffect(() => {
+    localStorage.setItem('desktopPets_onTop', String(isAlwaysOnTop));
+    try {
+      // @ts-ignore
+      const ipc = window.require ? window.require('electron').ipcRenderer : null;
+      if (ipc) {
+        ipc.send('toggle-always-on-top', isAlwaysOnTop);
+      }
+    } catch(e) { console.log(e); }
+  }, [isAlwaysOnTop]);
 
   useEffect(() => {
     localStorage.setItem('desktopPets_theme', theme);
@@ -254,12 +273,32 @@ export default function App() {
           <Bug size={16} />
         </button>
 
+        <button
+          onClick={() => setIsAlwaysOnTop(!isAlwaysOnTop)}
+          className={`absolute top-4 left-28 flex items-center gap-1 transition-colors px-3 py-1.5 rounded-full text-sm font-bold ${
+            isAlwaysOnTop 
+              ? 'bg-purple-100 text-purple-700 border border-purple-200 shadow-sm' 
+              : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600'
+          }`}
+          title={locale === 'en' ? "Always on Top" : "始终置顶层显示"}
+        >
+          📌 {locale === 'en' ? (isAlwaysOnTop ? "On Top" : "Standard") : (isAlwaysOnTop ? "已置顶" : "常规层")}
+        </button>
+
         <button 
           onClick={toggleLocale}
-          className="absolute top-4 right-4 flex items-center gap-1 text-gray-500 hover:text-gray-800 transition-colors bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-full text-sm font-bold"
+          className="absolute top-4 right-24 flex items-center gap-1 text-gray-500 hover:text-gray-800 transition-colors bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-full text-sm font-bold"
         >
           <Globe size={16} />
           {locale === 'en' ? '中文' : 'English'}
+        </button>
+
+        <button 
+          onClick={() => window.close()}
+          className="absolute top-4 right-4 flex items-center gap-1 text-red-600 hover:text-white transition-colors bg-red-100 hover:bg-red-500 px-3 py-1.5 rounded-full text-sm font-bold"
+        >
+          <X size={16} />
+          {t.quit}
         </button>
 
         <div className="flex items-center justify-center gap-3 mb-2 mt-2">
@@ -376,8 +415,45 @@ export default function App() {
           name={pet.name}
           isFrozen={selectedPetId === pet.id}
           onClick={() => setSelectedPetId(pet.id)}
+          onContextMenu={(e) => setContextMenu({ petId: pet.id, x: e.clientX, y: e.clientY })}
         />
       ))}
+
+      {contextMenu && (
+        <>
+          <div 
+            className="fixed inset-0 z-[10001]" 
+            onClick={() => setContextMenu(null)} 
+            onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}
+          />
+          <div 
+            className="fixed z-[10002] bg-white rounded-2xl shadow-2xl border border-gray-200 py-2 w-48 overflow-hidden animate-fade-in"
+            style={{ 
+              left: Math.min(contextMenu.x, window.innerWidth - 200), 
+              top: Math.min(contextMenu.y, window.innerHeight - 160) 
+            }}
+          >
+            <button
+              onClick={() => { setSelectedPetId(contextMenu.petId); setContextMenu(null); }}
+              className="w-full px-4 py-2.5 text-left hover:bg-gray-50 font-bold text-gray-700 flex items-center gap-2 text-sm transition-colors"
+            >
+              🔍 {t.catDetails}
+            </button>
+            <button
+              onClick={() => { setIsAlwaysOnTop(!isAlwaysOnTop); setContextMenu(null); }}
+              className="w-full px-4 py-2.5 text-left hover:bg-gray-50 font-bold text-gray-700 flex items-center gap-2 text-sm transition-colors border-y border-gray-100"
+            >
+              📌 {locale === 'en' ? (isAlwaysOnTop ? "Switch to Standard" : "Pin Always on Top") : (isAlwaysOnTop ? "取消置顶显示" : "置顶浮动层")}
+            </button>
+            <button
+              onClick={() => { setPetToDelete(contextMenu.petId); setContextMenu(null); }}
+              className="w-full px-4 py-2.5 text-left hover:bg-red-50 font-bold text-red-600 flex items-center gap-2 text-sm transition-colors"
+            >
+              👋 {t.sayBye}
+            </button>
+          </div>
+        </>
+      )}
 
       {/* Pet Details Modal */}
       {selectedPet && (
@@ -427,7 +503,7 @@ export default function App() {
             
             <div className="flex gap-3 mt-6">
               <button 
-                onClick={() => removePet(selectedPet.id)}
+                onClick={() => { setPetToDelete(selectedPet.id); setSelectedPetId(null); }}
                 className="w-1/3 py-3 bg-red-100 text-red-600 font-bold rounded-xl hover:bg-red-200 transition-colors"
               >
                 {t.sayBye}
@@ -500,6 +576,41 @@ export default function App() {
                 className="px-8 py-3 bg-blue-500 text-white font-bold rounded-xl hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/30"
               >
                 {t.done}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {petToDelete && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[20000] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-red-100 text-center">
+            <div className="mx-auto w-12 h-12 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4">
+              ⚠️
+            </div>
+            <h3 className="text-xl font-bold text-gray-800 mb-2">
+              {locale === 'en' ? "Say Bye to Pet?" : "告别宠物？"}
+            </h3>
+            <p className="text-gray-500 text-sm font-medium mb-6">
+              {locale === 'en' 
+                ? "Are you sure you want to send this pet away? You won't be able to retrieve it unless you spawn a new one." 
+                : "您确定要遣送这只小猫咪吗？遣送后除非召唤新的，否则无法找回哦。"}
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setPetToDelete(null)}
+                className="w-1/2 py-3 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                {locale === 'en' ? "Cancel" : "取消"}
+              </button>
+              <button 
+                onClick={() => { 
+                  removePet(petToDelete); 
+                  setPetToDelete(null); 
+                }}
+                className="w-1/2 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20"
+              >
+                {locale === 'en' ? "Yes, Say Bye" : "确定遣送"}
               </button>
             </div>
           </div>

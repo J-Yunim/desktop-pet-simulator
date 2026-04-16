@@ -66,6 +66,7 @@ interface DesktopPetProps {
   staticMode?: boolean;
   spriteUrl?: string;
   onClick?: () => void;
+  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
 export function DesktopPet({ 
@@ -77,7 +78,8 @@ export function DesktopPet({
   isFrozen = false,
   forceState,
   staticMode = false,
-  onClick
+  onClick,
+  onContextMenu
 }: DesktopPetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -428,6 +430,12 @@ export function DesktopPet({
         height={256} 
         onMouseDown={handleCanvasMouseDown}
         onClick={handleCanvasClick}
+        onContextMenu={(e) => {
+          if (onContextMenu && checkPixelTransparency(e)) {
+            e.preventDefault();
+            onContextMenu(e);
+          }
+        }}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         style={{ 
