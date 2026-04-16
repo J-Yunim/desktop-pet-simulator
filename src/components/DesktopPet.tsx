@@ -66,7 +66,6 @@ interface DesktopPetProps {
   staticMode?: boolean;
   spriteUrl?: string;
   onClick?: () => void;
-  onContextMenu?: (e: React.MouseEvent) => void;
 }
 
 export function DesktopPet({ 
@@ -78,8 +77,7 @@ export function DesktopPet({
   isFrozen = false,
   forceState,
   staticMode = false,
-  onClick,
-  onContextMenu
+  onClick
 }: DesktopPetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -96,6 +94,7 @@ export function DesktopPet({
   const dragOffsetRefY = useRef(0);
   const originalYRef = useRef(initialY);
   const dragStartPosRef = useRef({ x: 0, y: 0 });
+  const [squatScale, setSquatScale] = useState({ x: 1, y: 1 });
   
   const posRef = useRef({ x: initialX, y: initialY });
   const dirRef = useRef(1);
@@ -345,15 +344,55 @@ export function DesktopPet({
       if (isDraggingRef.current) {
         isDraggingRef.current = false;
         setIsDragging(false);
+        originalYRef.current = Math.min(Math.max(posRef.current.y, -50), window.innerHeight - 100);
         posRef.current.y = originalYRef.current;
       }
     };
 
+    let resizeTimeout: NodeJS.Timeout;
+    let lastWidth = window.innerWidth;
+    let lastHeight = window.innerHeight;
+
+    const onResize = () => {
+      const wDiff = Math.abs(window.innerWidth - lastWidth);
+      const hDiff = Math.abs(window.innerHeight - lastHeight);
+      
+      // 1. Shift positions relative to screen growth/shrink percentage
+      const ratioX = lastWidth > 0 ? window.innerWidth / lastWidth : 1;
+      const ratioY = lastHeight > 0 ? window.innerHeight / lastHeight : 1;
+      
+      posRef.current.x = posRef.current.x * ratioX;
+      posRef.current.y = posRef.current.y * ratioY;
+
+      // 2. Clamp strictly
+      posRef.current.x = Math.min(Math.max(posRef.current.x, -30), window.innerWidth - 130);
+      posRef.current.y = Math.min(Math.max(posRef.current.y, 50), window.innerHeight - 200);
+
+      // 2. Squat scaling
+      if (wDiff > 5 || hDiff > 5) {
+        if (wDiff > hDiff) {
+          setSquatScale({ x: 1.3, y: 0.75 });
+        } else {
+          setSquatScale({ x: 0.75, y: 1.3 });
+        }
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+          setSquatScale({ x: 1, y: 1 });
+        }, 300);
+      }
+      lastWidth = window.innerWidth;
+      lastHeight = window.innerHeight;
+    };
+
     window.addEventListener('mousemove', onWindowMouseMove);
     window.addEventListener('mouseup', onWindowMouseUp);
+    window.addEventListener('resize', onResize);
+
     return () => {
       window.removeEventListener('mousemove', onWindowMouseMove);
       window.removeEventListener('mouseup', onWindowMouseUp);
+      window.removeEventListener('resize', onResize);
+      clearTimeout(resizeTimeout);
     };
   }, []);
 
@@ -440,10 +479,11 @@ export function DesktopPet({
         onMouseLeave={handleMouseLeave}
         style={{ 
           imageRendering: 'pixelated',
-          pointerEvents: 'auto', // Re-enable pointer events for the canvas
-          cursor: isDragging ? 'grabbing' : (isHoveringPet ? 'grab' : 'default')
+          pointerEvents: 'auto',
+          cursor: isDragging ? 'grabbing' : (isHoveringPet ? 'grab' : 'default'),
+          transform: `scale(${isHoveringPet || isDragging ? 1.1 : 1}) scaleX(${squatScale.x}) scaleY(${squatScale.y})`
         }} 
-        className={`transition-transform ${isHoveringPet || isDragging ? 'scale-110' : ''}`}
+        className="transition-all duration-200 origin-bottom"
       />
       <div 
         className={`absolute bottom-0 left-0 right-0 text-center text-white font-bold text-sm tracking-wider transition-opacity ${isHoveringPet ? 'opacity-100' : 'opacity-80'}`}
